@@ -7,71 +7,158 @@ on:
     branches: [ main ]
 
 jobs:
-  build-and-test:
+  build-test-linux:
+    runs-on: ubuntu-latest
     strategy:
       matrix:
-        os: [ubuntu-latest, windows-latest, macos-latest]
-        include:
-          - os: macos-latest
-            architecture: x64
-          - os: macos-latest
-            architecture: arm64
-      
-    runs-on: ${{ matrix.os }}
+        build-type: [Release, Debug]
     
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v3
-      
-    - name: Set up CMake
-      uses: jwlawson/actions-setup-cmake@v1
-      with:
-        cmake-version: '3.25'
-        
-    - name: Install dependencies (Ubuntu)
-      if: runner.os == 'Linux'
+    - name: Checkout repository
+      uses: actions/checkout@v4
+    
+    - name: Install dependencies
       run: |
         sudo apt-get update
-        sudo apt-get install -y libgtest-dev build-essential cmake
-        
-    - name: Install dependencies (macOS)
-      if: runner.os == 'macOS'
+        sudo apt-get install -y \
+          build-essential \
+          cmake \
+          libgtest-dev \
+          googletest \
+          g++ \
+          make
+        cd /usr/src/gtest
+        sudo cmake CMakeLists.txt
+        sudo make
+        sudo cp lib/*.a /usr/lib
+    
+    - name: Configure CMake
       run: |
-        brew install cmake googletest
-        
+        mkdir -p build/${{ matrix.build-type }}
+        cd build/${{ matrix.build-type }}
+        cmake ../.. -DCMAKE_BUILD_TYPE=${{ matrix.build-type }}
+    
     - name: Build project
       run: |
-        mkdir build
-        cd build
-        cmake ..
-        cmake --build . --config Release
-        
+        cd build/${{ matrix.build-type }}
+        cmake --build . --config ${{ matrix.build-type }}
+    
     - name: Run tests
       run: |
-        cd build
-        ctest --output-on-failure
-        
-    - name: Upload artifacts
-      uses: actions/upload-artifact@v3
+        cd build/${{ matrix.build-type }}
+        ctest --verbose --output-on-failure
+    
+    - name: Upload Linux artifacts
+      uses: actions/upload-artifact@v4
       with:
-        name: binary-${{ runner.os }}
-        path: build/Release/myapp* build/myapp*
-        
+        name: hw-gha-linux-${{ matrix.build-type }}
+        path: build/${{ matrix.build-type }}/
+        retention-days: 5
+
+  build-test-windows:
+    runs-on: windows-latest
+    strategy:
+      matrix:
+        build-type: [Release, Debug]
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+    
+    - name: Install CMake
+      run: |
+        choco install cmake --installargs 'ADD_CMAKE_TO_PATH=System' -y
+    
+    - name: Configure CMake
+      run: |
+        mkdir build/${{ matrix.build-type }}
+        cd build/${{ matrix.build-type }}
+        cmake ../.. -DCMAKE_BUILD_TYPE=${{ matrix.build-type }}
+    
+    - name: Build project
+      run: |
+        cd build/${{ matrix.build-type }}
+        cmake --build . --config ${{ matrix.build-type }}
+    
+    - name: Run tests
+      run: |
+        cd build/${{ matrix.build-type }}
+        ctest --verbose --output-on-failure
+    
+    - name: Upload Windows artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: hw-gha-windows-${{ matrix.build-type }}
+        path: build/${{ matrix.build-type }}/
+        retention-days: 5
+
+  build-test-macos:
+    runs-on: macos-latest
+    strategy:
+      matrix:
+        build-type: [Release, Debug]
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+    
+    - name: Install dependencies
+      run: |
+        brew update
+        brew install cmake googletest
+    
+    - name: Configure CMake
+      run: |
+        mkdir -p build/${{ matrix.build-type }}
+        cd build/${{ matrix.build-type }}
+        cmake ../.. -DCMAKE_BUILD_TYPE=${{ matrix.build-type }}
+    
+    - name: Build project
+      run: |
+        cd build/${{ matrix.build-type }}
+        cmake --build . --config ${{ matrix.build-type }}
+    
+    - name: Run tests
+      run: |
+        cd build/${{ matrix.build-type }}
+        ctest --verbose --output-on-failure
+    
+    - name: Upload macOS artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: hw-gha-macos-${{ matrix.build-type }}
+        path: build/${{ matrix.build-type }}/
+        retention-days: 5
+
   deploy:
-    needs: build-and-test
+    needs: [build-test-linux, build-test-windows, build-test-macos]
     runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
     
     steps:
     - name: Download all artifacts
-      uses: actions/download-artifact@v3
-      
-    - name: Deploy to remote server via SSH
-      uses: appleboy/ssh-action@v0.1.5
+      uses: actions/download-artifact@v4
       with:
-        host: ${{ secrets.DEPLOY_HOST }}
-        username: ${{ secrets.DEPLOY_USER }}
-        key: ${{ secrets.DEPLOY_SSH_KEY }}
-        script: |
-          mkdir -p /var/www/myapp
-          cp -r ./* /var/www/myapp/
-          systemctl restart myapp-service
+        path: artifacts/
+    
+    - name: Display artifacts structure
+      run: |
+        echo "Artifacts downloaded:"
+        find artifacts/ -type f -name "*" | head -20
+        echo ""
+        echo "Total files:"
+        find artifacts/ -type f | wc -l
+    
+    - name: Mock deployment (for demonstration)
+      run: |
+        echo "✅ All builds completed successfully!"
+        echo "📦 Artifacts are ready for deployment"
+        echo ""
+        echo "In a real scenario, you would:"
+        echo "1. Deploy Linux build to production server"
+        echo "2. Deploy Windows build to Windows servers"
+        echo "3. Deploy macOS build for distribution"
+        echo ""
+        echo "Build matrix included:"
+        echo "- Release and Debug configurations"
+        echo "- All target platforms"
