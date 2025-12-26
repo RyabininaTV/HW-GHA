@@ -1,4 +1,3 @@
-@"
 #include <iostream>
 
 int main() {
@@ -6,4 +5,3 @@ int main() {
     std::cout << "Build successful on multiple platforms!" << std::endl;
     return 0;
 }
-"@ | Out-File -FilePath src\main.cpp -Encoding UTF8
