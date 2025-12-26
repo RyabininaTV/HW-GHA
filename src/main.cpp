@@ -1,11 +1,10 @@
+# Создайте минимальный main.cpp
+@"
 #include <iostream>
 
-int add(int a, int b) {
-    return a + b;
-}
-
 int main() {
-    std::cout << "Hello, World!" << std::endl;
-    std::cout << "2 + 3 = " << add(2, 3) << std::endl;
+    std::cout << "Hello from HW-GHA CI/CD Project!" << std::endl;
+    std::cout << "Build successful on multiple platforms!" << std::endl;
     return 0;
 }
+"@ | Out-File -FilePath src\main.cpp -Encoding UTF8

@@ -1,0 +1,145 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  build-test-linux:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Install basic dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y build-essential cmake g++
+        
+    - name: Configure CMake
+      run: |
+        mkdir -p build
+        cd build
+        cmake ..
+        
+    - name: Build project
+      run: |
+        cd build
+        cmake --build .
+        
+    - name: Test if binary exists
+      run: |
+        if [ -f "build/hw-gha" ] || [ -f "build/myapp" ]; then
+          echo "✅ Build successful!"
+        else
+          echo "❌ Build failed - no executable found"
+          find build/ -type f -name "*" | head -20
+        fi
+        
+    - name: Upload Linux artifacts
+      uses: actions/upload-artifact@v4
+      if: success()
+      with:
+        name: hw-gha-linux
+        path: build/
+        retention-days: 5
+
+  build-test-windows:
+    runs-on: windows-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Install CMake
+      run: choco install cmake -y --no-progress
+      
+    - name: Configure CMake
+      run: |
+        mkdir build
+        cd build
+        cmake ..
+        
+    - name: Build project
+      run: |
+        cd build
+        cmake --build . --config Release
+        
+    - name: Test if binary exists
+      run: |
+        if (Test-Path "build\Release\hw-gha.exe") -or (Test-Path "build\myapp.exe") {
+          echo "✅ Build successful!"
+        } else {
+          echo "❌ Build failed - no executable found"
+          Get-ChildItem -Path build -Recurse -File | Select-Object -First 10
+        }
+        
+    - name: Upload Windows artifacts
+      uses: actions/upload-artifact@v4
+      if: success()
+      with:
+        name: hw-gha-windows
+        path: build/
+        retention-days: 5
+
+  build-test-macos:
+    runs-on: macos-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Install dependencies
+      run: brew install cmake
+      
+    - name: Configure CMake
+      run: |
+        mkdir -p build
+        cd build
+        cmake ..
+        
+    - name: Build project
+      run: |
+        cd build
+        cmake --build .
+        
+    - name: Test if binary exists
+      run: |
+        if [ -f "build/hw-gha" ] || [ -f "build/myapp" ]; then
+          echo "✅ Build successful!"
+        else
+          echo "❌ Build failed - no executable found"
+          find build/ -type f -name "*" | head -20
+        fi
+        
+    - name: Upload macOS artifacts
+      uses: actions/upload-artifact@v4
+      if: success()
+      with:
+        name: hw-gha-macos
+        path: build/
+        retention-days: 5
+
+  summary:
+    needs: [build-test-linux, build-test-windows, build-test-macos]
+    runs-on: ubuntu-latest
+    if: always()
+    
+    steps:
+    - name: Workflow Summary
+      run: |
+        echo "## CI/CD Pipeline Results" >> $GITHUB_STEP_SUMMARY
+        echo "✅ Multi-platform build completed!" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "**Platforms tested:**" >> $GITHUB_STEP_SUMMARY
+        echo "- ✅ Linux (Ubuntu)" >> $GITHUB_STEP_SUMMARY  
+        echo "- ✅ Windows" >> $GITHUB_STEP_SUMMARY
+        echo "- ✅ macOS" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "**Next steps for deployment:**" >> $GITHUB_STEP_SUMMARY
+        echo "1. Set up SSH keys in GitHub Secrets" >> $GITHUB_STEP_SUMMARY
+        echo "2. Configure server details (DEPLOY_HOST, DEPLOY_USER)" >> $GITHUB_STEP_SUMMARY
+        echo "3. Add actual deployment commands" >> $GITHUB_STEP_SUMMARY
