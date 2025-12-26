@@ -1,0 +1,19 @@
+@"
+# Build files
+build/
+*.exe
+*.o
+*.obj
+*.lib
+*.dll
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# System
+.DS_Store
+Thumbs.db
+"@ | Out-File -FilePath .gitignore -Encoding UTF8
